@@ -162,10 +162,10 @@ default `openai` provider reads `OPENAI_BASE_URL`, so the move to local Qwen is 
 environment variables and no code: `OPENAI_BASE_URL=http://localhost:11434/v1`,
 `OPENAI_API_KEY=ollama`, `OPENAI_MODEL=qwen3.5:4b`, `OPENAI_MODEL_FAST=qwen3.5:4b`. What does not
 move: embeddings. The knowledge retriever indexes with `text-embedding-3-small` (1,536
-dimensions); pointing it at an Ollama embedding model means a re-index. Alice has tools (17
-copilot tools with confirmation cards on writes) but no MCP client in its code; the only MCP
-server in that repo is the Playwright one configured for Claude Code. So "tooling and MCP" is
-half right and the MCP half was done through Qwen-Agent in this repo instead.
+dimensions); pointing it at an Ollama embedding model means a re-index. Alice had tools (13
+copilot tools with confirmation cards on writes) but no MCP client or server in its code. It has
+one now: `scripts/mcp-server.ts` serves the copilot tools over stdio MCP with a write policy, and
+both Qwen-Agent and AgentScope drive it on local Qwen (see README, "Driving Alice over MCP").
 
 What happened when I ran it. Login, dashboard and the copilot all came up. The first prompt
 ("How many tasks do I have at the moment, and what are they called?") produced the right tool
@@ -184,6 +184,13 @@ context; a longer thread would be silently truncated from the top, tools first, 
 `num_ctx` is raised. Argument formatting was fine on both attempts; the model chose a `limit`
 of 10 the first time and 20 the second, both valid. Nothing was dropped.
 
-The change to Alice is uncommitted and off by default, so production behaviour is unchanged.
-The run used a copy of the local database and a throwaway user, not the real data.
+The Chat Completions switch, a local run script and the MCP server are committed to the alice
+repo; the switch is off unless `OPENAI_USE_CHAT_COMPLETIONS=1`, so production behaviour is
+unchanged. The runs used a copy of the local database and a throwaway user, not the real data.
+
+What AgentScope 2.0 added on top of Alice's own gating: its permission engine held the create
+call with a `RequireUserConfirmEvent` and would not continue without a `UserConfirmResultEvent`.
+With the wrong approval rule the model retried the refused call four times with identical
+arguments until `max_iters`; `ReActConfig(stop_on_reject=True)` is the one-line fix. That is
+LEC's "unsafe retries" in miniature, and the framework has the switch for it.
 

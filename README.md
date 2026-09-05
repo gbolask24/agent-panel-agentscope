@@ -99,6 +99,34 @@ both modes.
 QWEN_AGENT_USE_RAW_API=0 .venv/bin/python qwen_agent_fncall.py   # see the 500
 ```
 
+## Driving Alice over MCP
+
+Alice (my content studio, github.com/gbolask24/alice) now serves its 13 copilot tools over stdio
+MCP from `scripts/mcp-server.ts` in that repo. The server uses the same tool registry the in-app
+copilot uses, binds one user, and applies a write policy: `preview` (default) makes destructive
+tools return the confirmation card Alice would show a person and change nothing; `allow` runs
+them; `deny` refuses them. Two scripts here drive it on local Qwen with the same three prompts
+(list LinkedIn generators, create a task, list tasks):
+
+```bash
+.venv/bin/python alice_qwen_agent_mcp.py    # Qwen-Agent: mcpServers entry, native tool calls
+.venv/bin/python alice_agentscope_mcp.py    # AgentScope 2.0: MCPClient + Agent + permission engine
+```
+
+Both completed all three turns on the first working run (roughly 10 to 30 s a turn). Two things
+worth knowing:
+
+- AgentScope 2.0 held the `create_task` call on its own. Its permission engine treats any tool
+  not annotated read-only as "ask" in the default mode and emits a `RequireUserConfirmEvent`; the
+  reply does not continue until something answers with a `UserConfirmResultEvent`. The script's
+  `boundary()` function plays the human. On the first attempt it refused by mistake (AgentScope
+  names MCP tools `mcp__alice__create_task`) and the model retried the refused call four times
+  with the same arguments. `ReActConfig(stop_on_reject=True)` ends the attempt on a refusal
+  instead. That is the "unsafe retries" failure mode and its fix, in one line.
+- On both frameworks the 4B model dropped the `channel` argument from the create call while
+  saying "for the linkedin channel" in its answer. Arguments that validate are not arguments
+  that are complete; the schema allowed the omission, so the task landed in the default channel.
+
 ## Model
 
 Ollama 0.33.3, tag `qwen3.5:4b` (Qwen3.5, 4.7B parameters, Q4_K_M, 3.4 GB), Apple M1, 8 GB RAM,
