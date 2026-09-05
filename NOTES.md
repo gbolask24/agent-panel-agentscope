@@ -126,6 +126,16 @@ Working hypotheses, after the build:
   Confirmed. The 2.0 bus gives you locks and an append-only log to build the first two on.
   Versioned, self-revising agent files exist nowhere in either framework.
 
+## Where the frameworks now touch my own work
+
+- Alice serves its copilot tools over MCP (`scripts/mcp-server.ts`), and both Qwen-Agent and
+  AgentScope 2.0 drive it on local Qwen. AgentScope's permission engine held the create call until
+  a boundary function approved it; `stop_on_reject=True` stopped the retry loop.
+- The judgement panel is wired in as Alice's Critic step behind `CRITIC_PANEL_URL`, same score
+  shape, single-model fallback. First run scored a specific post 9/10/8/8 and a hype post 4/3/8/5,
+  with the dissent logged. Four minutes a variant locally, which is why it is a flag and not the
+  default.
+
 ## What surprised me or broke
 
 - The Python line went 2.0 on 25 May 2026 and removed MsgHub, pipelines and the a2a package.
@@ -139,6 +149,9 @@ Working hypotheses, after the build:
   switches; only `reasoning_effort: "none"` works, and it is undocumented for this model.
 - The very first structured tool call from the 4B model spelt Manchester "Manchater" in the
   arguments. Arguments that parse are not arguments that are right.
+- Nested pydantic models as `structured_model` failed validation three times out of three on the
+  4B model (the members apologised for "technical validation errors" and wrote prose). Flat
+  fields passed first time. Keep structured schemas flat for small models.
 - In the first panel run Researcher and Critic disagreed at confidence 5 each (revise versus
   approve). The chair recorded the overruled dissent. That is the log I wanted and would not have
   had if the exchange had come first.

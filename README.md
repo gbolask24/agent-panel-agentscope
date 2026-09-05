@@ -127,6 +127,45 @@ worth knowing:
   saying "for the linkedin channel" in its answer. Arguments that validate are not arguments
   that are complete; the schema allowed the omission, so the task landed in the default channel.
 
+## The panel as Alice's Critic
+
+Alice's generation pipeline is Router, Retriever, Generator, Critic, Polisher. The Critic is one
+model call that scores each variant on vibe_match, hook, clarity and platform_fit (0 to 10) and
+drops anything below the threshold. `panel_critic.py` produces the same four scores from the
+three-agent panel (independent member verdicts, one exchange, chaired verdict, all logged), and
+`panel_service.py` serves it over HTTP:
+
+```bash
+.venv1/bin/uvicorn panel_service:app --port 8765
+curl -s localhost:8765/critique -H 'content-type: application/json' \
+  -d '{"channel":"linkedin","format":"LinkedIn post","variants":[{"content":"..."}]}'
+```
+
+In the alice repo, `CRITIC_PANEL_URL=http://localhost:8765` makes `lib/pipeline/critic.ts` call
+the panel instead of the single model, with the same output shape, and fall back to the single
+model if the panel is down or slow. Off by default, so production is unchanged.
+
+First real run, two LinkedIn drafts, one specific and one hype:
+
+| Variant | Researcher | Critic | Chair | Seconds |
+|---|---|---|---|---|
+| Specific (4,000 SKUs, zero rollbacks) | 9 / 10 / 9 / 8 | 9 / 10 / 8 / 9 | 9 / 10 / 8 / 8 | 217 |
+| Hype ("revolutionizing", "DM me") | 2 / 3 / 8 / 5 | 4 / 3 / 8 / 5 | 4 / 3 / 8 / 5 | 268 |
+
+Scores are vibe_match / hook / clarity / platform_fit. On the hype post the members disagreed on
+vibe_match (2 against 4); the Researcher moved to 3 in the exchange, the Chair overruled and
+recorded it as dissent. On the specific post the Chair took the Critic's lower clarity score,
+saying "three decisions" is vague for a sceptical reader. Both are in `runs/critic-*.jsonl`.
+
+Two lessons from getting it working:
+
+- Nested structured output (`scores: {...}, notes: {...}`) failed AgentScope's validation three
+  times out of three on the 4B model; the members gave up and answered in prose. Flat fields
+  (`vibe_match`, `note_vibe_match`, ...) passed first time. Small models want flat schemas.
+- Four minutes a variant is the honest cost on an 8 GB laptop: six model calls with multi-agent
+  history, prompt processing at 30 to 45 tokens a second under memory pressure. `PANEL_EXCHANGE=0`
+  drops the exchange round (four calls). On a hosted model the same panel is 20 to 30 s a variant.
+
 ## Model
 
 Ollama 0.33.3, tag `qwen3.5:4b` (Qwen3.5, 4.7B parameters, Q4_K_M, 3.4 GB), Apple M1, 8 GB RAM,
