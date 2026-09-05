@@ -143,7 +143,17 @@ Working hypotheses, after the build:
   approve). The chair recorded the overruled dissent. That is the log I wanted and would not have
   had if the exchange had come first.
 
-<!-- COMPARISON -->
+## Comparison in one paragraph
+
+Full table in [COMPARISON.md](COMPARISON.md). On the five basic prompts, the raw call,
+AgentScope's ReAct agent and Qwen-Agent in native mode all scored 15 of 15 with zero malformed
+arguments; Qwen-Agent in its default prompt-templated mode scored 0 of 5 because Ollama's own
+qwen3.5 parser returns a 500 when it meets Qwen-Agent's `<tool_call>` text. On six harder prompts
+all three scored 12 of 18 with the identical two failures every time: "half two" became 14:15
+and "quarter to five" from 16:25 became 35 minutes. Those are the model's, not the frameworks'.
+Median turn latency was 5.7 to 7.2 seconds raw and 8.2 to 9.2 seconds through either framework,
+the difference being the second model call that writes the answer.
+
 
 ## Alice
 
@@ -157,4 +167,23 @@ copilot tools with confirmation cards on writes) but no MCP client in its code; 
 server in that repo is the Playwright one configured for Claude Code. So "tooling and MCP" is
 half right and the MCP half was done through Qwen-Agent in this repo instead.
 
-<!-- ALICE RESULT -->
+What happened when I ran it. Login, dashboard and the copilot all came up. The first prompt
+("How many tasks do I have at the moment, and what are they called?") produced the right tool
+call, `list_tasks` with scope mine, status all, limit 10, and the tool ran. The turn then died:
+`@ai-sdk/openai` 3.x's default `openai(model)` speaks the Responses API, Ollama 0.33 accepts
+`/v1/responses` for the first step, and rejects the second step with
+`input[2]: unknown input item type: "item_reference"`, which is how the SDK refers back to the
+earlier tool call. One env-gated line in `lib/models/index.ts` (`openai.chat(id)` when
+`OPENAI_USE_CHAT_COMPLETIONS=1`) routes through Chat Completions instead, and the same prompt
+then completed: tool call, "Found 0 tasks" card, and the answer "You have 0 tasks at the
+moment." The whole turn took 38 seconds: 22 seconds for the first model call (Alice's system
+prompt plus 17 tool schemas is about 2,300 tokens, and prompt processing on the M1 is the cost,
+not generation), 10 seconds for the answer, 5 seconds for a follow-up call. On gpt-5.4 the same
+turn is two to three seconds. That 2,300-token prompt also sits close to Ollama's 4,096 default
+context; a longer thread would be silently truncated from the top, tools first, unless
+`num_ctx` is raised. Argument formatting was fine on both attempts; the model chose a `limit`
+of 10 the first time and 20 the second, both valid. Nothing was dropped.
+
+The change to Alice is uncommitted and off by default, so production behaviour is unchanged.
+The run used a copy of the local database and a throwaway user, not the real data.
+

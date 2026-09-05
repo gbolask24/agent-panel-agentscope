@@ -12,7 +12,8 @@ What is here:
   agent, phase, timestamp and content.
 - `compare.py`: the same five tool-call prompts through a raw OpenAI-compatible call, AgentScope's
   ReAct agent and Qwen-Agent's Assistant, on the same local model. Numbers in
-  [COMPARISON.md](COMPARISON.md).
+  [COMPARISON.md](COMPARISON.md): 100% on the basic set for every runner except Qwen-Agent's
+  default mode (0%, server 500s), 66% for all of them on the hard set with identical failures.
 - `qwen_agent_fncall.py` and `qwen_agent_mcp.py`: the smallest Qwen-Agent function-calling and
   MCP examples that run against Ollama.
 - `bare_toolcall.py`: proves the local model returns a structured tool call through the OpenAI
@@ -81,6 +82,22 @@ uv pip install --python .venv/bin/python agentscope "qwen-agent[mcp]" soundfile 
 
 Two virtual environments because AgentScope 1.x and 2.x cannot coexist and Qwen-Agent wants a
 newer `mcp` package than AgentScope 1.x tolerates. That fact is itself in the notes.
+
+Qwen-Agent's default mode does not send `tools` to the API. It writes the function signatures
+into the system prompt in the Hermes `<tools>` format and parses `<tool_call>` tags back out of
+the text. On Ollama with qwen3.5 that collides with Ollama's own qwen3.5 tool-call parser, which
+sees the `<tool_call>` text, fails to parse it (`qwen3.5 tool call parsing failed error=EOF` in
+the server log) and returns a 500. `QWEN_AGENT_USE_RAW_API=1` switches Qwen-Agent to native tool
+calls and everything works. The two Qwen-Agent examples default to that; the comparison records
+both modes.
+
+## Qwen-Agent examples
+
+```bash
+.venv/bin/python qwen_agent_fncall.py     # one registered tool
+.venv/bin/python qwen_agent_mcp.py        # reference time server over stdio MCP (uvx mcp-server-time)
+QWEN_AGENT_USE_RAW_API=0 .venv/bin/python qwen_agent_fncall.py   # see the 500
+```
 
 ## Model
 

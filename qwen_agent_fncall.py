@@ -41,8 +41,11 @@ def main() -> None:
     generate_cfg = {"temperature": 0.3}
     if REASONING_EFFORT:
         generate_cfg["reasoning_effort"] = REASONING_EFFORT  # passed straight through to the API
-    if os.getenv("QWEN_AGENT_USE_RAW_API"):
-        generate_cfg["use_raw_api"] = True  # let the server parse tool calls instead of Qwen-Agent
+    # Default ON for Qwen3.5 on Ollama: Ollama's own qwen3.5 parser returns a 500 when it meets
+    # the Hermes-style <tool_call> text that Qwen-Agent's default prompt template induces.
+    # Set QWEN_AGENT_USE_RAW_API=0 to see that failure.
+    if os.getenv("QWEN_AGENT_USE_RAW_API", "1") not in ("0", "false", ""):
+        generate_cfg["use_raw_api"] = True
     bot = Assistant(
         llm={"model": MODEL, "model_server": BASE_URL, "api_key": API_KEY, "generate_cfg": generate_cfg},
         system_message="You are a helpful assistant. Use tools when they fit.",

@@ -28,6 +28,8 @@ def main() -> None:
     generate_cfg = {"temperature": 0.3}
     if REASONING_EFFORT:
         generate_cfg["reasoning_effort"] = REASONING_EFFORT
+    if os.getenv("QWEN_AGENT_USE_RAW_API", "1") not in ("0", "false", ""):
+        generate_cfg["use_raw_api"] = True  # see qwen_agent_fncall.py for why this is the default here
     bot = Assistant(
         llm={"model": MODEL, "model_server": BASE_URL, "api_key": API_KEY, "generate_cfg": generate_cfg},
         system_message="You are a helpful assistant. Use tools when they fit.",

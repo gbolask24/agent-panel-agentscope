@@ -349,7 +349,7 @@ def run_qwen_agent() -> None:
     llm_cfg = {"model": MODEL, "model_server": BASE_URL, "api_key": API_KEY, "generate_cfg": gen_cfg}
     if os.getenv("QWEN_AGENT_FNCALL_PROMPT_TYPE"):
         gen_cfg["fncall_prompt_type"] = os.environ["QWEN_AGENT_FNCALL_PROMPT_TYPE"]
-    if os.getenv("QWEN_AGENT_USE_RAW_API"):
+    if os.getenv("QWEN_AGENT_USE_RAW_API", "0") not in ("", "0", "false"):
         gen_cfg["use_raw_api"] = True
     runner_name = "qwen_agent" + ("_raw_api" if gen_cfg.get("use_raw_api") else "")
 
@@ -358,8 +358,13 @@ def run_qwen_agent() -> None:
             bot = Assistant(llm=llm_cfg, system_message=SYSTEM, function_list=list(TOOLS))
             t0 = time.perf_counter()
             final = []
-            for final in bot.run([{"role": "user", "content": case["prompt"]}]):
-                pass
+            try:
+                for final in bot.run([{"role": "user", "content": case["prompt"]}]):
+                    pass
+            except Exception as e:  # e.g. Ollama 500 when its parser meets Qwen-Agent's <tool_call> text
+                latency = time.perf_counter() - t0
+                write(runner_name, case, rep, "error", f"{type(e).__name__}: {str(e)[:120]}", latency, [])
+                continue
             latency = time.perf_counter() - t0
             calls = [{"name": m["function_call"]["name"], "arguments": m["function_call"]["arguments"]}
                      for m in final if m.get("function_call")]
@@ -377,15 +382,15 @@ def report() -> None:
     by = defaultdict(list)
     for r in rows:
         by[(r.get("set", "basic"), r["runner"])].append(r)
-    print("| Set | Runner | Turns | Correct | Bad args | Wrong tool | Malformed | No call | Median latency | p90 latency |")
-    print("|---|---|---|---|---|---|---|---|---|---|")
+    print("| Set | Runner | Turns | Correct | Bad args | Wrong tool | Malformed | No call | Error | Median latency | p90 latency |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|")
     for (set_name, runner), rs in sorted(by.items()):
         n = len(rs)
         c = lambda o: sum(1 for r in rs if r["outcome"] == o)
         lat = sorted(r["latency_s"] for r in rs)
         med = lat[len(lat) // 2]
         p90 = lat[min(len(lat) - 1, int(len(lat) * 0.9))]
-        print(f"| {set_name} | {runner} | {n} | {c('correct')} ({100*c('correct')//n}%) | {c('bad_args')} | {c('wrong_tool')} | {c('malformed')} | {c('no_call')} | {med:.1f}s | {p90:.1f}s |")
+        print(f"| {set_name} | {runner} | {n} | {c('correct')} ({100*c('correct')//n}%) | {c('bad_args')} | {c('wrong_tool')} | {c('malformed')} | {c('no_call')} | {c('error')} | {med:.1f}s | {p90:.1f}s |")
     print("\nFailures:")
     for r in rows:
         if r["outcome"] != "correct":
